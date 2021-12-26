@@ -15,6 +15,7 @@ wave_all=reshape(ADC_DATA,sample_size,ch_count,pages_count,level_count);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 pkg load interval
+addpath('C:\Users\Nikita\Desktop\bazhenov\kursach')
 addpath('C:\Users\Nikita\Desktop\bazhenov\kursach\m')
 addpath('C:\Users\Nikita\Desktop\bazhenov\kursach\m\polytopes')
 
@@ -24,8 +25,8 @@ channel_number = 1
 % Error model
 data_for_level_roi = [];
 data_for_level_bg = [];
-win1=401;
-win2=600;
+win1=481;
+win2=500;
 win=[win1:win2];
 winBG=[1:200]+1;
 modes = []
@@ -34,9 +35,15 @@ for jj=1:10 % levels
   data_for_level_bg = [];
   for ii=1:10 % runs
     datanow=wave_all(:,channel_number,ii,jj);
+    bg_max = max(datanow(winBG));
+    bg_min = min(datanow(winBG));
+    bg_delta = mean(datanow(winBG));##(bg_max + bg_min)/2;
+    bg_d = bg_delta*ones(length(win),1);
+
+    roi = datanow(win)-bg_d;
     data_for_level_roi = [
       data_for_level_roi 
-      datanow(win)
+      roi
     ];
     data_for_level_bg= [
       data_for_level_bg 
@@ -44,14 +51,11 @@ for jj=1:10 % levels
     ];
   end
 
-  %data_sample = data_for_level;
-  mean(data_for_level_bg)
   ERR=std(data_for_level_bg)
   err_const=3*ERR
   estBG=max(data_for_level_bg)-min(data_for_level_bg)
 
-  data_sampleStat=err_const*ones(length(data_for_level_bg),1);
-  OnesData=ones(length(data_for_level_bg),1);
+  data_sampleStat=err_const*ones(length(data_for_level_roi),1);
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % interval
@@ -59,53 +63,32 @@ for jj=1:10 % levels
 
   
   DataStd = midrad(data_for_level_roi, data_sampleStat);
+  [mode_single, mu_array, max_mu, mode_ind, c_array, C, multi]= modeIR2(DataStd)
 
-  verbose = 0
+  verbose = 1
 
-
-  % interval mode
-  intervals = DataStd;
-  edges = [];
-  for i = 1:length(DataStd)
-    interval = DataStd(i);
-    edges = [edges [inf(interval) sup(interval); 1 -1]];
-  endfor
-
-  [~,inx]=sort(edges(1,:));
-  out = edges(:,inx);
-
-  counter = 0;
-  max_ind = 0;
-  max_counter = 0;
-  for i = 1:length(out)
-    counter = counter + out(2,i);
-    if counter > max_counter
-      max_counter = counter;
-      max_ind = i;
-    end
-  endfor
-
-
-  for i = 1: length(edges)-1
-    if(edges(1,i)==out(1,max_ind))
-      modes = [modes; [edges(1,i) edges(1,i+1)]];
-      break
-    end
-  endfor
-
+  modes = [modes; [inf(mode_single) sup(mode_single)]]
 
   if verbose > 0
-    mode_arr=((modes(jj,2)+modes(jj,1))/2)*ones(2000,1);
+    figure
+    x_1 =[]
+    for ii=1:length(c_array)
+      x_1 = [x_1 inf(c_array(ii))];
+    endfor
+    plot(x_1,mu_array, '-b', "linewidth", 3);
+    xlabel('Data')
+    ylabel('\mu')
+    title('\mu array')
+    
+    mode_arr=((modes(jj,1)+modes(jj,2))/2)*ones(2000,1);
     figure
     errorbar (1:length(data_for_level_roi), data_for_level_roi, data_sampleStat,".b");
-    % margin
     xmargin=0.5
     ymargin=err_const/2
     xlim( [1-xmargin length(data_for_level_roi)+xmargin] )
     ylim( [min(inf(DataStd))-ymargin max(sup(DataStd))+ymargin])
     hold on
     plot([1:2000],mode_arr, '-r', "linewidth", 10) 
-    % /margin
     title_str=strcat('\it ADCDATA')
     title(title_str, 'FontSize', 14, 'Fontweight', 'normal')
     xlabel('\it channel number');
@@ -268,5 +251,13 @@ ir_plotline(b_lsm, xlim, 'b--')         # зависимость с параме
 grid on
 set(gca, 'fontsize', 12)
 
+#[a, b] +- [c, d]
+x = 5
+a = -0.00538
+b =  0.00036
+c = 0.9091 * x
+d = 0.9246 * x
+res = [a+c, b+d]
+(res(2) - res(1)) / 2
 
 
